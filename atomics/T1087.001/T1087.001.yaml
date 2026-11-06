@@ -1,5 +1,5 @@
 attack_technique: T1087.001
-display_name: 'Account Discovery: Local Account'
+display_name: "Account Discovery: Local Account"
 atomic_tests:
 - name: Enumerate all accounts (Local)
   auto_generated_guid: f8aab3dd-5990-4bf8-b8ab-2226c951696f
@@ -10,7 +10,7 @@ atomic_tests:
   input_arguments:
     output_file:
       description: Path where captured results will be placed
-      type: Path
+      type: path
       default: /tmp/T1087.001.txt
   executor:
     command: |
@@ -29,11 +29,12 @@ atomic_tests:
   input_arguments:
     output_file:
       description: Path where captured results will be placed
-      type: Path
+      type: path
       default: /tmp/T1087.001.txt
   executor:
     command: |
-      sudo cat /etc/sudoers > #{output_file}
+      if [ -f /etc/sudoers ]; then sudo cat /etc/sudoers > #{output_file}; fi;
+      if [ -f /usr/local/etc/sudoers ]; then sudo cat /usr/local/etc/sudoers > #{output_file}; fi;
       cat #{output_file}
     cleanup_command: |
       rm -f #{output_file}
@@ -49,11 +50,12 @@ atomic_tests:
   input_arguments:
     output_file:
       description: Path where captured results will be placed
-      type: Path
+      type: path
       default: /tmp/T1087.001.txt
   executor:
     command: |
       grep 'x:0:' /etc/passwd > #{output_file}
+      grep '*:0:' /etc/passwd >> #{output_file}
       cat #{output_file} 2>/dev/null
     cleanup_command: |
       rm -f #{output_file} 2>/dev/null
@@ -76,7 +78,7 @@ atomic_tests:
     prereq_command: |
       which lsof
     get_prereq_command: |
-      (which yum && yum -y install lsof)||(which apt-get && DEBIAN_FRONTEND=noninteractive apt-get install -y lsof)
+      (which pkg && pkg install -y lsof)||(which yum && yum -y install lsof)||(which apt-get && DEBIAN_FRONTEND=noninteractive apt-get install -y lsof)
 - name: Show if a user account has ever logged in remotely
   auto_generated_guid: 0f0b6a29-08c3-44ad-a30b-47fd996b2110
   description: |
@@ -86,7 +88,7 @@ atomic_tests:
   input_arguments:
     output_file:
       description: Path where captured results will be placed
-      type: Path
+      type: path
       default: /tmp/T1087.001.txt
   dependency_executor_name: sh
   dependencies:
@@ -98,7 +100,8 @@ atomic_tests:
       sudo apt-get install login; exit 1;
   executor:
     command: |
-      lastlog > #{output_file}
+      [ "$(uname)" = 'FreeBSD' ] && cmd="lastlogin" || cmd="lastlog" 
+      $cmd > #{output_file}
       cat #{output_file}
     cleanup_command: |
       rm -f #{output_file}
@@ -172,3 +175,42 @@ atomic_tests:
     command: |
       query user
     name: command_prompt
+- name: ESXi - Local Account Discovery via ESXCLI
+  auto_generated_guid: 9762ac6e-aa60-4449-a2f0-cbbd0e1fd22c
+  description: |
+    An adversary can use ESXCLI to enumerate a list of all local accounts on an ESXi host.
+    [Reference](https://lolesxi-project.github.io/LOLESXi/lolesxi/Binaries/esxcli/#account%20enumeration)"
+  supported_platforms:
+  - windows
+  input_arguments:
+    vm_host:
+      description: Specify the host name or IP of the ESXi server.
+      type: string
+      default: atomic.local
+    vm_user:
+      description: Specify the privilege user account on the ESXi server.
+      type: string
+      default: root
+    vm_pass:
+      description: Specify the privileged user's password.
+      type: string
+      default: password
+    plink_file:
+      description: Path to Plink
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\plink.exe'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Check if we have plink
+    prereq_command: |
+      if (Test-Path "#{plink_file}") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://the.earth.li/~sgtatham/putty/latest/w64/plink.exe" -OutFile "#{plink_file}" -UseBasicParsing
+  executor:
+    command: |
+      echo "" | "#{plink_file}" -batch "#{vm_host}" -ssh -l #{vm_user} -pw "#{vm_pass}" "esxcli system account list"
+    name: command_prompt
+    elevation_required: false
+

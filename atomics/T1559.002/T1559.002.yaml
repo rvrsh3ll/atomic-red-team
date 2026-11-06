@@ -1,5 +1,5 @@
 attack_technique: T1559.002
-display_name: 'Inter-Process Communication: Dynamic Data Exchange'
+display_name: "Inter-Process Communication: Dynamic Data Exchange"
 atomic_tests:
 - name: Execute Commands
   auto_generated_guid: f592ba2a-e9e8-4d62-a459-ef63abd819fd
@@ -29,7 +29,7 @@ atomic_tests:
   - windows
   executor:
     command: |
-      start $PathToAtomicsFolder\T1559.002\bin\DDE_Document.docx
+      start "$PathToAtomicsFolder\T1559.002\bin\DDE_Document.docx"
     name: command_prompt
 - name: DDEAUTO
   auto_generated_guid: cf91174c-4e74-414e-bec0-8d60a104d181

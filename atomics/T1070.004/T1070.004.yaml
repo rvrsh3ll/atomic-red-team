@@ -1,7 +1,7 @@
 attack_technique: T1070.004
-display_name: 'Indicator Removal on Host: File Deletion'
+display_name: "Indicator Removal: File Deletion"
 atomic_tests:
-- name: Delete a single file - Linux/macOS
+- name: Delete a single file - FreeBSD/Linux/macOS
   auto_generated_guid: 562d737f-2fc6-4b09-8c2a-7f8ff0828480
   description: |
     Delete a single file from the temporary directory
@@ -9,15 +9,29 @@ atomic_tests:
   - linux
   - macos
   input_arguments:
+    parent_folder:
+      description: Path of parent folder
+      type: path
+      default: /tmp/victim-files/
     file_to_delete:
       description: Path of file to delete
-      type: Path
-      default: /tmp/victim-files/a
+      type: path
+      default: /tmp/victim-files/T1070.004-test.txt  
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      The file must exist in order to be deleted
+    prereq_command: |
+      test -e #{file_to_delete} && exit 0 || exit 1
+    get_prereq_command: |
+      mkdir -p #{parent_folder} && touch #{file_to_delete}
   executor:
     command: |
       rm -f #{file_to_delete}
+    cleanup_command: |
+      rm -rf #{parent_folder}
     name: sh
-- name: Delete an entire folder - Linux/macOS
+- name: Delete an entire folder - FreeBSD/Linux/macOS
   auto_generated_guid: a415f17e-ce8d-4ce2-a8b4-83b674e7017e
   description: |
     Recursively delete the temporary directory and all files contained within it
@@ -27,8 +41,16 @@ atomic_tests:
   input_arguments:
     folder_to_delete:
       description: Path of folder to delete
-      type: Path
-      default: /tmp/victim-files
+      type: path
+      default: /tmp/victim-folder
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      The folder must exist in order to be deleted
+    prereq_command: |
+      test -e #{folder_to_delete} && exit 0 || exit 1
+    get_prereq_command: |
+      mkdir -p #{folder_to_delete}
   executor:
     command: |
       rm -rf #{folder_to_delete}
@@ -42,8 +64,15 @@ atomic_tests:
   input_arguments:
     file_to_shred:
       description: Path of file to shred
-      type: Path
+      type: path
       default: /tmp/victim-shred.txt
+  dependencies:
+  - description: |
+      Check if file already exists
+    prereq_command: |
+      if [ -f "#{file_to_shred}" ]; then echo "File already exists"; else echo "File does NOT exist yet"; exit 1; fi
+    get_prereq_command: |
+      touch #{file_to_shred}
   executor:
     command: |
       shred -u #{file_to_shred}
@@ -57,8 +86,9 @@ atomic_tests:
   - windows
   input_arguments:
     file_to_delete:
-      description: File to delete. Run the prereq command to create it if it does not exist.
-      type: String
+      description: File to delete. Run the prereq command to create it if it does
+        not exist.
+      type: string
       default: '%temp%\deleteme_T1551.004'
   dependency_executor_name: command_prompt
   dependencies:
@@ -82,7 +112,7 @@ atomic_tests:
   input_arguments:
     folder_to_delete:
       description: Folder to delete. Run the prereq command to create it if it does not exist.
-      type: String
+      type: string
       default: '%temp%\deleteme_T1551.004'
   dependency_executor_name: command_prompt
   dependencies:
@@ -105,7 +135,7 @@ atomic_tests:
   input_arguments:
     file_to_delete:
       description: File to delete. Run the prereq command to create it if it does not exist.
-      type: String
+      type: string
       default: $env:TEMP\deleteme_T1551.004
   dependency_executor_name: powershell
   dependencies:
@@ -128,7 +158,7 @@ atomic_tests:
   input_arguments:
     folder_to_delete:
       description: Folder to delete. Run the prereq command to create it if it does not exist.
-      type: String
+      type: string
       default: $env:TEMP\deleteme_folder_T1551.004
   dependency_executor_name: powershell
   dependencies:
@@ -150,12 +180,12 @@ atomic_tests:
   - linux
   executor:
     command: |
-      rm -rf / --no-preserve-root > /dev/null 2> /dev/null
-    name: bash
+      [ "$(uname)" = 'Linux' ] && rm -rf / --no-preserve-root > /dev/null 2> /dev/null || chflags -R 0 / && rm -rf / > /dev/null 2> /dev/null
+    name: sh
 - name: Delete Prefetch File
   auto_generated_guid: 36f96049-0ad7-4a5f-8418-460acaeb92fb
   description: |
-    Delete a single prefetch file.  Deletion of prefetch files is a known anti-forensic technique. To verify execution, Run "(Get-ChildItem -Path "$Env:SystemRoot\prefetch\*.pf" | Measure-Object).Count"
+    Delete a single prefetch file.  Deletion of prefetch files is a known anti-forensic technique. To verify execution, Run `(Get-ChildItem -Path "$Env:SystemRoot\prefetch\*.pf" | Measure-Object).Count`
     before and after the test to verify that the number of prefetch files decreases by 1.
   supported_platforms:
   - windows
@@ -176,18 +206,23 @@ atomic_tests:
   - windows
   input_arguments:
     teamviewer_log_file:
-      description: Teamviewer log file to delete. Run the prereq command to create it if it does not exist.
-      type: String
+      description: Teamviewer log file to create and delete.
+      type: string
       default: $env:TEMP\TeamViewer_54.log
-  dependency_executor_name: powershell
-  dependencies:
-  - description: |
-      The folder to delete must exist on disk at specified location (#{teamviewer_log_file})
-    prereq_command: |
-      if (Test-Path #{teamviewer_log_file}) {exit 0} else {exit 1}
-    get_prereq_command: |
-      New-Item -Path #{teamviewer_log_file} | Out-Null
   executor:
     command: |
-      Remove-Item #{teamviewer_log_file}
+      New-Item -Path #{teamviewer_log_file} -Force | Out-Null
+      Remove-Item #{teamviewer_log_file} -Force -ErrorAction Ignore
     name: powershell
+- name: Clears Recycle bin via rd
+  auto_generated_guid: f723d13d-48dc-4317-9990-cf43a9ac0bf2
+  description: |
+    An adversary clears the recycle bin in the system partition using rd to remove traces of deleted files.
+    [Reference](https://thedfirreport.com/2024/08/12/threat-actors-toolkit-leveraging-sliver-poshc2-batch-scripts/)
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      rd /s /q %systemdrive%\$RECYCLE.BIN
+    name: command_prompt
+    elevation_required: true

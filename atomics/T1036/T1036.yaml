@@ -8,10 +8,12 @@ atomic_tests:
   - windows
   executor:
     command: |-
-      copy %WINDIR%\System32\cmd.exe /Y %ALLUSERSPROFILE%\cmd.exe
-      start %ALLUSERSPROFILE%\cmd.exe
-    cleanup_command: del %ALLUSERSPROFILE%\cmd.exe >nul 2>&1
-    name: command_prompt
+      copy-item "$env:windir\System32\cmd.exe" -destination "$env:allusersprofile\cmd.exe"
+      start-process "$env:allusersprofile\cmd.exe"
+      sleep -s 5 
+      stop-process -name "cmd" | out-null
+    cleanup_command: remove-item "$env:allusersprofile\cmd.exe" -force -erroraction silentlycontinue
+    name: powershell
 - name: Malware Masquerading and Execution from Zip File
   auto_generated_guid: 4449c89b-ec82-43a4-89c1-91e2f1abeecc
   description: When the file is unzipped and the README.cmd file opened, it executes and changes the .pdf to .dll and executes the dll. This is a BazaLoader technique [as reported here](https://twitter.com/ffforward/status/1481672378639912960)
@@ -20,20 +22,59 @@ atomic_tests:
   input_arguments:
     url:
       description: Location of zip file
-      type: Url
+      type: url
       default: https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1036/bin/T1036.zip
   dependencies:
   - description: Zip file must be present.
     prereq_command: |
-      if (Test-Path $env:userprofile\Downloads\T1036.zip) {exit 0} else {exit 1}
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\T1036.zip") {exit 0} else {exit 1}
     get_prereq_command: |
-      Invoke-WebRequest -OutFile "$env:userprofile\Downloads\T1036.zip" #{url}
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction ignore -Force | Out-Null
+      Invoke-WebRequest #{url} -OutFile "PathToAtomicsFolder\..\ExternalPayloads\T1036.zip" -UseBasicParsing 
   executor:
     command: |-
-      Expand-Archive -Path $env:userprofile\Downloads\T1036.zip -DestinationPath $env:userprofile\Downloads\T1036 -Force
-      cd $env:userprofile\Downloads\T1036
-      cmd /c $env:userprofile\Downloads\T1036\README.cmd >$null 2>$null
+      Expand-Archive -Path "PathToAtomicsFolder\..\ExternalPayloads\T1036.zip" -DestinationPath "$env:userprofile\Downloads\T1036" -Force
+      cd "$env:userprofile\Downloads\T1036"
+      cmd /c "$env:userprofile\Downloads\T1036\README.cmd" >$null 2>$null
     cleanup_command: |-
       taskkill /IM Calculator.exe /f >$null 2>$null
-      Remove-Item $env:userprofile\Downloads\T1036 -recurse -ErrorAction Ignore
+      Remove-Item "$env:userprofile\Downloads\T1036" -recurse -ErrorAction Ignore
     name: powershell
+- name: Masquerading File Extension Restoration via PowerShell and esentutl
+  auto_generated_guid: ba3f1b66-0c42-4cef-b316-12cff72b70db
+  description: |
+    Simulates the technique of restoring or altering file extensions using the built-in Windows database utility esentutl.exe via PowerShell. 
+    Threat actors such as menuPass (G0045) have leveraged esentutl to copy and rename files (such as changing payloads masquerading as .txt back to true executable types) to evade defenses and bypass simple name-based monitoring.
+  supported_platforms:
+  - windows
+  input_arguments:
+    workdir:
+      description: Working directory path to stage the files.
+      type: path
+      default: C:\Users\Public\Libraries\staging
+  executor:
+    name: powershell
+    elevation_required: false
+    command: |
+      $WorkDir = "#{workdir}"
+      if (-not (Test-Path -Path $WorkDir)) {
+          New-Item -ItemType Directory -Path $WorkDir -Force | Out-Null
+      }
+      $SourceFile = Join-Path $WorkDir "payload.txt"
+      $DestFile   = Join-Path $WorkDir "payload.exe"
+      "This is actually a malicious executable" | Out-File -FilePath $SourceFile -Encoding ascii -Force
+      $EsentutlArgs = @("/y", $SourceFile, "/d", $DestFile, "/o")
+      $null = & "esentutl.exe" @EsentutlArgs 2>&1
+      if (Test-Path -Path $DestFile) {
+          Write-Host "  -> Copied payload.txt to payload.exe (true extension revealed)"
+      } else {
+          Write-Host "  [!] esentutl copy failed"
+      }
+    cleanup_command: |
+      Remove-Item -Path "C:\Users\Public\Libraries\staging\payload.txt" -Force -ErrorAction SilentlyContinue
+      Remove-Item -Path "C:\Users\Public\Libraries\staging\payload.exe" -Force -ErrorAction SilentlyContinue
+      if (Test-Path "C:\Users\Public\Libraries\staging") {
+          if ((Get-ChildItem "C:\Users\Public\Libraries\staging").Count -eq 0) {
+              Remove-Item -Path "C:\Users\Public\Libraries\staging" -Force
+          }
+      }

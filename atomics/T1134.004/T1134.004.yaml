@@ -1,5 +1,5 @@
 attack_technique: T1134.004
-display_name: 'Access Token Manipulation: Parent PID Spoofing'
+display_name: "Access Token Manipulation: Parent PID Spoofing"
 atomic_tests:
 - name: Parent PID Spoofing using PowerShell
   auto_generated_guid: 069258f4-2162-46e9-9a25-c9c6c56150d2
@@ -14,36 +14,43 @@ atomic_tests:
   input_arguments:
     parent_process_name:
       description: Name of the parent process
-      type: String
+      type: string
       default: explorer
     spawnto_process_path:
       description: Path of the process to spawn
-      type: Path
+      type: path
       default: C:\Program Files\Internet Explorer\iexplore.exe
     dll_process_name:
       description: Name of the created process from the injected dll
-      type: String
+      type: string
       default: calculator
     dll_path:
       description: Path of the dll to inject
-      type: Path
+      type: path
       default: PathToAtomicsFolder\T1134.004\bin\calc.dll
     spawnto_process_name:
       description: Name of the process to spawn
-      type: String
+      type: string
       default: iexplore
   dependency_executor_name: powershell
   dependencies:
   - description: |
       DLL to inject must exist on disk at specified location (#{dll_path})
     prereq_command: |
-      if (Test-Path #{dll_path}) {exit 0} else {exit 1}
+      if (Test-Path "#{dll_path}") {exit 0} else {exit 1}
     get_prereq_command: |
-      New-Item -Type Directory (split-path #{dll_path}) -ErrorAction ignore | Out-Null
-      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1134.004/bin/calc.dll" -OutFile "#{dll_path}"
+      New-Item -Type Directory (split-path "#{dll_path}") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1134.004/bin/calc.dll" -OutFile "#{dll_path}" -UseBasicParsing
+  - description: |
+      PPID.ps1 must exist on disk at $PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1
+    prereq_command: |
+      if (Test-Path "$PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1") {exit 0} else {exit 1}
+    get_prereq_command: |
+      New-Item -Type Directory (split-path "$PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest "https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1134.004/src/PPID-Spoof.ps1" -OutFile "$PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1" -UseBasicParsing
   executor:
     command: |
-      . $PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1
+      . "$PathToAtomicsFolder\T1134.004\src\PPID-Spoof.ps1"
       $ppid=Get-Process #{parent_process_name} | select -expand id
       PPID-Spoof -ppid $ppid -spawnto "#{spawnto_process_path}" -dllpath "#{dll_path}"
     cleanup_command: |
@@ -58,15 +65,15 @@ atomic_tests:
   input_arguments:
     file_path:
       description: File path or name of process to spawn
-      type: Path
+      type: path
       default: $Env:windir\System32\WindowsPowerShell\v1.0\powershell.exe
     parent_pid:
       description: PID of process to spawn from
-      type: String
+      type: string
       default: $PID
     command_line:
       description: Specified command line to use
-      type: String
+      type: string
       default: -Command Start-Sleep 10
   dependencies:
   - description: The AtomicTestHarnesses module must be installed and Start-ATHProcessUnderSpecificParent must be exported in the module.
@@ -87,11 +94,11 @@ atomic_tests:
   input_arguments:
     parent_pid:
       description: PID of process to spawn from
-      type: String
+      type: string
       default: $PID
     test_guid:
       description: Defined test GUID
-      type: String
+      type: string
       default: 12345678-1234-1234-1234-123456789123
   dependencies:
   - description: The AtomicTestHarnesses module must be installed and Start-ATHProcessUnderSpecificParent must be exported in the module.
@@ -112,11 +119,11 @@ atomic_tests:
   input_arguments:
     command_line:
       description: Specified command line to use
-      type: String
+      type: string
       default: -Command Start-Sleep 10
     file_path:
       description: File path or name of process to spawn
-      type: Path
+      type: path
       default: $Env:windir\System32\WindowsPowerShell\v1.0\powershell.exe
   dependencies:
   - description: The AtomicTestHarnesses module must be installed and Start-ATHProcessUnderSpecificParent must be exported in the module.
@@ -137,15 +144,15 @@ atomic_tests:
   input_arguments:
     command_line:
       description: Specified command line to use
-      type: String
+      type: string
       default: -Command Start-Sleep 10
     file_path:
       description: File path or name of process to spawn
-      type: Path
+      type: path
       default: $Env:windir\System32\WindowsPowerShell\v1.0\powershell.exe
     parent_name:
       description: Parent process to spoof from
-      type: Path
+      type: path
       default: $Env:windir\System32\notepad.exe
   dependencies:
   - description: The AtomicTestHarnesses module must be installed and Start-ATHProcessUnderSpecificParent must be exported in the module.

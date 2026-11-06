@@ -1,5 +1,5 @@
 attack_technique: T1563.002
-display_name: 'Remote Service Session Hijacking: RDP Hijacking'
+display_name: "Remote Service Session Hijacking: RDP Hijacking"
 atomic_tests:
 - name: RDP hijacking
   auto_generated_guid: a37ac520-b911-458e-8aed-c5f1576d9f46
@@ -10,11 +10,11 @@ atomic_tests:
   input_arguments:
     Session_ID:
       description: The ID of the session to which you want to connect
-      type: String
+      type: string
       default: "1337"
     Destination_ID:
       description: Connect the session of another user to a different session
-      type: String
+      type: string
       default: rdp-tcp#55
   executor:
     command: |

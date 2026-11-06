@@ -1,5 +1,5 @@
 attack_technique: T1071.004
-display_name: 'Application Layer Protocol: DNS'
+display_name: "Application Layer Protocol: DNS"
 atomic_tests:
 - name: DNS Large Query Volume
   auto_generated_guid: 1700f5d6-5a44-487b-84de-bc66f507b0a6
@@ -12,23 +12,23 @@ atomic_tests:
   input_arguments:
     query_type:
       description: DNS query type
-      type: String
+      type: string
       default: TXT
     subdomain:
       description: Subdomain prepended to the domain name
-      type: String
+      type: string
       default: atomicredteam
     query_volume:
       description: Number of DNS queries to send
-      type: Integer
+      type: integer
       default: 1000
     domain:
       description: Default domain to simulate against
-      type: String
-      default: 127.0.0.1.xip.io
+      type: string
+      default: 127.0.0.1.nip.io
   executor:
     command: |
-      for($i=0; $i -le #{query_volume}; $i++) { Resolve-DnsName -type "#{query_type}" "#{subdomain}.$(Get-Random -Minimum 1 -Maximum 999999).#{domain}" -QuickTimeout}
+      for($i=0; $i -le #{query_volume}; $i++) { Resolve-DnsName -type "#{query_type}" "#{subdomain}-$(Get-Random -Minimum 1 -Maximum 999999).#{domain}" -QuickTimeout}
     name: powershell
 - name: DNS Regular Beaconing
   auto_generated_guid: 3efc144e-1af8-46bb-8ca2-1376bb6db8b6
@@ -41,31 +41,31 @@ atomic_tests:
   input_arguments:
     runtime:
       description: Time in minutes to run the simulation
-      type: Integer
+      type: integer
       default: 30
     domain:
       description: Default domain to simulate against
-      type: String
-      default: 127.0.0.1.xip.io
+      type: string
+      default: 127.0.0.1.nip.io
     subdomain:
       description: Subdomain prepended to the domain name
-      type: String
+      type: string
       default: atomicredteam
     query_type:
       description: DNS query type
-      type: String
+      type: string
       default: TXT
     c2_interval:
       description: Seconds between C2 requests to the command and control server
-      type: Integer
+      type: integer
       default: 30
     c2_jitter:
       description: Percentage of jitter to add to the C2 interval to create variance in the times between C2 requests
-      type: Integer
+      type: integer
       default: 20
   executor:
     command: |
-      Set-Location PathToAtomicsFolder
+      Set-Location "PathToAtomicsFolder"
       .\T1071.004\src\T1071-dns-beacon.ps1 -Domain #{domain} -Subdomain #{subdomain} -QueryType #{query_type} -C2Interval #{c2_interval} -C2Jitter #{c2_jitter} -RunTime #{runtime}
     name: powershell
 - name: DNS Long Domain Query
@@ -79,19 +79,19 @@ atomic_tests:
   input_arguments:
     query_type:
       description: DNS query type
-      type: String
+      type: string
       default: TXT
     subdomain:
       description: Subdomain prepended to the domain name (should be 63 characters to test maximum length)
-      type: String
+      type: string
       default: atomicredteamatomicredteamatomicredteamatomicredteamatomicredte
     domain:
       description: Default domain to simulate against
-      type: String
-      default: 127.0.0.1.xip.io
+      type: string
+      default: 127.0.0.1.nip.io
   executor:
     command: |
-      Set-Location PathToAtomicsFolder
+      Set-Location "PathToAtomicsFolder"
       .\T1071.004\src\T1071-dns-domain-length.ps1 -Domain #{domain} -Subdomain #{subdomain} -QueryType #{query_type}
     name: powershell
 - name: DNS C2
@@ -108,11 +108,11 @@ atomic_tests:
   input_arguments:
     domain:
       description: Domain Name configured to use DNS Server where your C2 listener is running
-      type: String
+      type: string
       default: example.com
     server_ip:
       description: IP address of DNS server where your C2 listener is running
-      type: String
+      type: string
       default: 127.0.0.1
   executor:
     command: |

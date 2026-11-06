@@ -1,5 +1,5 @@
 attack_technique: T1115
-display_name: Clipboard Data
+display_name: "Clipboard Data"
 atomic_tests:
 - name: Utilize Clipboard to store or execute commands from
   auto_generated_guid: 0cd14633-58d4-4422-9ede-daa2c9474ae7
@@ -45,7 +45,7 @@ atomic_tests:
   input_arguments:
     ms_product:
       description: Maldoc application Word
-      type: String
+      type: string
       default: Word
   dependency_executor_name: powershell
   dependencies:
@@ -69,3 +69,15 @@ atomic_tests:
     cleanup_command: |
       Remove-Item "$env:TEMP\atomic_T1115_clipboard_data.txt" -ErrorAction Ignore
     name: powershell
+- name: Add or copy content to clipboard with xClip
+  auto_generated_guid: ee363e53-b083-4230-aff3-f8d955f2d5bb
+  description: |
+    Utilize Linux Xclip to copy history and place in clipboard then output to a history.txt file. Successful execution will capture history and output to a file on disk.
+  supported_platforms:
+  - linux
+  executor:
+    command: |
+      apt install xclip -y
+      history | tail -n 30 | xclip -sel clip
+      xclip -o > history.txt
+    name: sh

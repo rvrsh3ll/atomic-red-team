@@ -1,5 +1,5 @@
 attack_technique: T1114.001
-display_name: 'Email Collection: Local Email Collection'
+display_name: "Email Collection: Local Email Collection"
 atomic_tests:
 - name: Email Collection with PowerShell Get-Inbox
   auto_generated_guid: 3f1b5096-0139-4736-9b78-19bcb02bb1cb
@@ -13,24 +13,23 @@ atomic_tests:
   input_arguments:
     output_file:
       description: Output file path
-      type: String
+      type: string
       default: $env:TEMP\mail.csv
     file_path:
       description: File path for Get-Inbox.ps1
-      type: String
+      type: string
       default: PathToAtomicsFolder\T1114.001\src
   dependency_executor_name: powershell
   dependencies:
   - description: |
       Get-Inbox.ps1 must be located at #{file_path}
     prereq_command: |
-      if (Test-Path #{file_path}\Get-Inbox.ps1) {exit 0} else {exit 1}
+      if (Test-Path "#{file_path}\Get-Inbox.ps1") {exit 0} else {exit 1}
     get_prereq_command: |
-      Invoke-WebRequest "https://github.com/redcanaryco/atomic-red-team/blob/master/atomics/T1114.001/src/Get-Inbox.ps1" -OutFile "#{file_path}\Get-Inbox.ps1"
+      Invoke-WebRequest "https://raw.githubusercontent.com/redcanaryco/atomic-red-team/master/atomics/T1114.001/src/Get-Inbox.ps1" -OutFile "#{file_path}\Get-Inbox.ps1" -UseBasicParsing
   executor:
     command: |
-      powershell -executionpolicy bypass -command #{file_path}\Get-Inbox.ps1 -file #{output_file}
+      powershell -executionpolicy bypass -command "#{file_path}\Get-Inbox.ps1" -file #{output_file}
     cleanup_command: |
       Remove-Item #{output_file} -Force -ErrorAction Ignore
     name: powershell
-
